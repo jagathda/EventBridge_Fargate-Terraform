@@ -80,3 +80,22 @@ resource "aws_security_group" "fargate_sg" {
 resource "aws_ecs_cluster" "fargate_cluster" {
   name = "fargate-cluster"
 }
+
+# Create ECS task role
+resource "aws_iam_role" "ecs_task_execution_role" {
+  name = "ecs_task_execution_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+        {
+            Action = "sts:AssumeRole"
+            Principal = {
+                Services = "ecs-tasks.amazoneaws.com"
+            }
+            Effect = "Allow"
+            Sid = ""
+        }
+    ]
+  })
+}
