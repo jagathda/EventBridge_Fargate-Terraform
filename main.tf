@@ -13,7 +13,7 @@ resource "aws_vpc" "fargate_vpc" {
   }
 }
 
-# Created public subnets
+# Create public subnets
 resource "aws_subnet" "public_subnet_1" {
   vpc_id            = aws_vpc.fargate_vpc.id
   cidr_block        = "10.0.1.0/24"
@@ -47,11 +47,11 @@ resource "aws_route_table_association" "public_subnet_1_association" {
 }
 
 resource "aws_route_table_association" "public_subnet_2_association" {
-  subnet_id      = aws_subnet.public_subnet_1.id
+  subnet_id      = aws_subnet.public_subnet_2.id
   route_table_id = aws_route_table.public_route_table.id
 }
 
-# Create a security group for ECS fargate
+# Create a security group for ECS Fargate
 resource "aws_security_group" "fargate_sg" {
   vpc_id = aws_vpc.fargate_vpc.id
 
@@ -85,23 +85,24 @@ resource "aws_ecs_cluster" "fargate_cluster" {
 resource "aws_iam_role" "ecs_task_execution_role" {
   name = "ecs_task_execution_role"
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
+  assume_role_policy = <<EOF
+  {
+    "Version": "2012-10-17",
+    "Statement": [
       {
-        Action = "sts:AssumeRole"
-        Principal = {
-          Services = "ecs-tasks.amazoneaws.com"
-        }
-        Effect = "Allow"
-        Sid    = ""
+        "Effect": "Allow",
+        "Principal": {
+          "Service": "ecs-tasks.amazonaws.com"
+        },
+        "Action": "sts:AssumeRole"
       }
     ]
-  })
+  }
+  EOF
 }
 
-# Attach policy to task role
-resource "aws_iam_role_policy_attachment" "ecs_task_excution_policy" {
+# Attach policy to ECS task role
+resource "aws_iam_role_policy_attachment" "ecs_task_execution_policy" {
   role       = aws_iam_role.ecs_task_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
@@ -128,11 +129,12 @@ resource "aws_ecs_task_definition" "nginx_task" {
       ]
     }
   ])
+
   execution_role_arn = aws_iam_role.ecs_task_execution_role.arn
 }
 
 # Create ECS service
-resource "aws_ecs_service" "nginx_service" {
+/*resource "aws_ecs_service" "nginx_service" {
   name            = "nginx-service"
   cluster         = aws_ecs_cluster.fargate_cluster.id
   task_definition = aws_ecs_task_definition.nginx_task.arn
@@ -145,7 +147,7 @@ resource "aws_ecs_service" "nginx_service" {
     assign_public_ip = true
   }
 }
-
+*/
 #####################################################
 
 # EventBridge rule for triggering ECS task
@@ -153,17 +155,43 @@ resource "aws_cloudwatch_event_rule" "ecs_event_rule" {
   name        = "ecs_event_rule"
   description = "EventBridge rule to trigger ECS task"
   event_pattern = jsonencode({
-    source        = ["my.custom.source"],
-    "detail-type" = ["myDetailType"]
+    source        = ["my.custom.source"], 
+    "detail-type" = ["myDetailType"]   
   })
 }
 
-# Target ECS task for eventbridge rule
+# IAM policy for EventBridge to invoke ECS tasks
+resource "aws_iam_policy" "ecs_invoke_policy" {
+  name = "ecs_invoke_policy"
+
+  policy = <<EOF
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": [
+          "ecs:RunTask",
+          "ecs:StartTask"
+        ],
+        "Resource": "*"
+      }
+    ]
+  }
+  EOF
+}
+
+# Attach ECS invoke policy to EventBridge role
+resource "aws_iam_role_policy_attachment" "ecs_invoke_policy_attachment" {
+  role       = aws_iam_role.eventbridge_invoke_ecs_role.name
+  policy_arn = aws_iam_policy.ecs_invoke_policy.arn
+}
+
+# Target ECS task for EventBridge rule
 resource "aws_cloudwatch_event_target" "ecs_event_target" {
   rule      = aws_cloudwatch_event_rule.ecs_event_rule.name
-  target_id = "ecs_target"
-
-  arn = aws_ecs_cluster.fargate_cluster.arn
+  arn       = aws_ecs_cluster.fargate_cluster.arn
+  role_arn  = aws_iam_role.eventbridge_invoke_ecs_role.arn
 
   ecs_target {
     task_definition_arn = aws_ecs_task_definition.nginx_task.arn
@@ -177,43 +205,43 @@ resource "aws_cloudwatch_event_target" "ecs_event_target" {
   }
 }
 
-#####################################################
-
-# IAM role for eventbridge to trigger ECS
+# IAM role for EventBridge to trigger ECS
 resource "aws_iam_role" "eventbridge_invoke_ecs_role" {
   name = "eventbridge_invoke_ecs_role"
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-        {
-            Effect = "Allow"
-            Action = "sts:AssumeRole"
-            Principal = {
-                service = "events.amazonaws.com"
-            }
-        }
+  assume_role_policy = <<EOF
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Principal": {
+          "Service": "events.amazonaws.com"
+        },
+        "Action": "sts:AssumeRole"
+      }
     ]
-  })
+  }
+  EOF
 }
 
-# Attach the required policy to role
+# Attach the required policy to the EventBridge role
 resource "aws_iam_role_policy" "ecs_task_execution_from_eventbridge_policy" {
   role = aws_iam_role.eventbridge_invoke_ecs_role.name
 
   policy = jsonencode({
-        Version = "2012-10-17"
+    Version = "2012-10-17",
     Statement = [
-        {
-            Effect = "Allow"
-            Action = "ecs:RunTask"
-            Resource = aws_ecs_task_definition.nginx_task.arn
-        },
-        {
-            Effect = "Allow"
-            Action = "iam:PassRole"
-            Resource = aws_iam_role.ecs_task_execution_role.arn
-        }
+      {
+        Effect = "Allow",
+        Action = "ecs:RunTask",
+        Resource = aws_ecs_task_definition.nginx_task.arn
+      },
+      {
+        Effect = "Allow",
+        Action = "iam:PassRole",
+        Resource = aws_iam_role.ecs_task_execution_role.arn
+      }
     ]
   })
 }
