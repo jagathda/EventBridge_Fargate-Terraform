@@ -176,3 +176,23 @@ resource "aws_cloudwatch_event_target" "ecs_event_target" {
     }
   }
 }
+
+#####################################################
+
+# IAM role for eventbridge to trigger ECS
+resource "aws_iam_role" "eventbridge_invoke_ecs_role" {
+  name = "eventbridge_invoke_ecs_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+        {
+            Effect = "Allow"
+            Action = "sts:AssumeRole"
+            Principal = {
+                service = "events.amazonaws.com"
+            }
+        }
+    ]
+  })
+}
