@@ -105,3 +105,28 @@ resource "aws_iam_role_policy_attachment" "ecs_task_excution_policy" {
   role = aws_iam_role.ecs_task_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
+
+# Define ECS task definition for nginx container
+resource "aws_ecs_task_definition" "nginx_task" {
+  family = "nginx-fargate-task"
+  network_mode = "awsvpc"
+  requires_compatibilities = [ "FARGATE" ]
+  cpu = "256"
+  memory = "512"
+
+  container_definitions = jsonencode([
+    {
+        name = "nginx"
+        image = "nginx:latest"
+        essential = true
+        portMappings = [
+            {
+                containerPort = 80
+                hostPort = 80
+                protocol = "tcp"
+            }
+        ]
+    }
+  ])
+  execution_role_arn = aws_iam_role.ecs_task_execution_role.arn
+}
