@@ -145,3 +145,15 @@ resource "aws_ecs_service" "nginx_service" {
     assign_public_ip = true
   }
 }
+
+#####################################################
+
+# EventBridge rule for triggering ECS task
+resource "aws_cloudwatch_event_rule" "ecs_event_rule" {
+  name = "ecs_event_rule"
+  description = "EventBridge rule to trigger ECS task"
+  event_pattern = jsonencode({
+    source = ["my.custom.source"],
+    "detail-type" = ["myDetailType"]
+  })
+}
