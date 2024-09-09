@@ -23,3 +23,8 @@ resource "aws_subnet" "public_subnet_2" {
   cidr_block = "10.0.2.0/24"
   availability_zone = "eu-north-1b"
 }
+
+# Create internet gateway
+resource "aws_internet_gateway" "fargate_igw" {
+  vpc_id = aws_vpc.fargate_vpc.id
+}
