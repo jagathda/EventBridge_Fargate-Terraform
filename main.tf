@@ -3,6 +3,8 @@ provider "aws" {
     region = "eu-north-1"
 }
 
+#####################################################
+
 # Create VPC
 resource "aws_vpc" "fargate_vpc" {
   cidr_block = "10.0.0.0/16"
@@ -70,4 +72,11 @@ resource "aws_security_group" "fargate_sg" {
   tags = {
     Name = "FargateSecurityGroup"
   }
+}
+
+#####################################################
+
+# Create ECS cluster
+resource "aws_ecs_cluster" "fargate_cluster" {
+  name = "fargate-cluster"
 }
