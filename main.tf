@@ -130,3 +130,18 @@ resource "aws_ecs_task_definition" "nginx_task" {
   ])
   execution_role_arn = aws_iam_role.ecs_task_execution_role.arn
 }
+
+# Create ECS service
+resource "aws_ecs_service" "nginx_service" {
+  name = "nginx-service"
+  cluster = aws_ecs_cluster.fargate_cluster.id
+  task_definition = aws_ecs_task_definition.nginx_task.arn
+  desired_count = 1
+  launch_type = "FARGATE"
+
+  network_configuration {
+    subnets = [ aws_subnet.public_subnet_1.id, aws_subnet.public_subnet_2.id ]
+    security_groups = [aws_security_group.fargate_sg.id]
+    assign_public_ip = true
+  }
+}
